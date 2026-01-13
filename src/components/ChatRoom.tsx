@@ -3,6 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { useToast } from '@/hooks/use-toast';
+import { useNotifications } from '@/hooks/useNotifications';
 import Icon from '@/components/ui/icon';
 import UserProfile from '@/components/UserProfile';
 import UsersList from '@/components/UsersList';
@@ -27,6 +29,10 @@ const ChatRoom = ({
   const [messageText, setMessageText] = useState('');
   const [showProfile, setShowProfile] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const previousMessagesCount = useRef(messages.length);
+  const previousUsersCount = useRef(users.length);
+  const { toast } = useToast();
+  const { showNotification } = useNotifications();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -35,6 +41,48 @@ const ChatRoom = ({
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  useEffect(() => {
+    if (messages.length > previousMessagesCount.current) {
+      const lastMessage = messages[messages.length - 1];
+      const isOwnMessage = lastMessage.userId === currentUser.id;
+      const isSystemMessage = lastMessage.userId === 'system';
+
+      if (!isOwnMessage && !isSystemMessage) {
+        const sender = users.find((u) => u.id === lastMessage.userId);
+        const senderName = sender?.nickname || 'Пользователь';
+        
+        showNotification(`${senderName}`, {
+          body: lastMessage.text,
+          tag: 'new-message',
+        });
+
+        toast({
+          title: `${sender?.avatar || '💬'} ${senderName}`,
+          description: lastMessage.text,
+        });
+      }
+    }
+    previousMessagesCount.current = messages.length;
+  }, [messages, currentUser.id, users, showNotification, toast]);
+
+  useEffect(() => {
+    if (users.length > previousUsersCount.current) {
+      const newUser = users[users.length - 1];
+      if (newUser.id !== currentUser.id) {
+        showNotification(`${newUser.avatar} ${newUser.nickname} присоединился!`, {
+          body: 'Новый участник в чате',
+          tag: 'user-joined',
+        });
+
+        toast({
+          title: `${newUser.avatar} ${newUser.nickname} присоединился!`,
+          description: 'Новый участник в чате',
+        });
+      }
+    }
+    previousUsersCount.current = users.length;
+  }, [users, currentUser.id, showNotification, toast]);
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
